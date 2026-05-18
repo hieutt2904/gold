@@ -61,7 +61,7 @@ function saveCache(cache) {
 //   - first ever load: backfill `initialDays` business days
 //   - same day: read cache only
 //   - next day: fetch only the new latest day
-export async function getHistory({ days = 60, initialDays = 45, onProgress } = {}) {
+export async function getHistory({ days = 60, initialDays = 180, onProgress } = {}) {
   const cache = loadCache();
   const todayKey = isoDay(todayUTC());
 

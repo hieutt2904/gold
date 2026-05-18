@@ -137,6 +137,103 @@ export function renderPriceChart(history, currency, formatPrice, convert) {
   });
 }
 
+export function renderLongTermChart(fullHistory, displayDays, formatPrice, convert) {
+  destroy('longterm');
+  const ctx = document.getElementById('longterm-chart');
+  if (!ctx) return;
+  // Compute indicators on full history so SMA 200 can be shown when available,
+  // then slice to the visible window for display.
+  const closesAll = fullHistory.map((p) => p.price);
+  const sma50All = sma(closesAll, 50);
+  const sma100All = sma(closesAll, 100);
+  const sma200All = sma(closesAll, 200);
+
+  const startIdx = Math.max(0, fullHistory.length - displayDays);
+  const history = fullHistory.slice(startIdx);
+  const sma50 = sma50All.slice(startIdx);
+  const sma100 = sma100All.slice(startIdx);
+  const sma200 = sma200All.slice(startIdx);
+  const xs = history.map((p) => p.date);
+
+  // 52-week high/low computed on the full (or last 252-day) window
+  const window = closesAll.slice(Math.max(0, closesAll.length - 252));
+  const hi = Math.max(...window);
+  const lo = Math.min(...window);
+
+  const conv = (v) => (v == null ? null : convert(v));
+  const data = (arr) => arr.map((v, i) => ({ x: xs[i], y: conv(v) }));
+
+  const datasets = [
+    {
+      label: 'Giá đóng cửa',
+      data: history.map((p) => ({ x: p.date, y: conv(p.price) })),
+      borderColor: '#f6c453',
+      backgroundColor: 'rgba(246,196,83,0.06)',
+      borderWidth: 1.5,
+      fill: true,
+      pointRadius: 0,
+      tension: 0.15,
+    },
+    {
+      label: 'SMA 50',
+      data: data(sma50),
+      borderColor: '#4ea8de',
+      borderWidth: 2,
+      fill: false,
+      pointRadius: 0,
+      tension: 0.2,
+    },
+    {
+      label: 'SMA 100',
+      data: data(sma100),
+      borderColor: '#a78bfa',
+      borderWidth: 2,
+      fill: false,
+      pointRadius: 0,
+      tension: 0.2,
+    },
+    {
+      label: 'SMA 200',
+      data: data(sma200),
+      borderColor: '#ff5a5f',
+      borderWidth: 2.5,
+      borderDash: [6, 4],
+      fill: false,
+      pointRadius: 0,
+      tension: 0.2,
+    },
+    {
+      label: 'Đỉnh 52 tuần',
+      data: xs.map((d) => ({ x: d, y: conv(hi) })),
+      borderColor: 'rgba(46,204,113,0.4)',
+      borderWidth: 1,
+      borderDash: [3, 6],
+      fill: false,
+      pointRadius: 0,
+    },
+    {
+      label: 'Đáy 52 tuần',
+      data: xs.map((d) => ({ x: d, y: conv(lo) })),
+      borderColor: 'rgba(255,90,95,0.4)',
+      borderWidth: 1,
+      borderDash: [3, 6],
+      fill: false,
+      pointRadius: 0,
+    },
+  ];
+
+  const opts = baseOptions(formatPrice);
+  // Hơi rộng hơn cho biểu đồ dài hạn
+  opts.scales.x.ticks.maxTicksLimit = 12;
+  opts.scales.x.time = { unit: 'month', tooltipFormat: 'dd MMM yyyy', displayFormats: { month: 'MM/yy', day: 'dd/MM' } };
+
+  chartInstances.longterm = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: opts,
+  });
+}
+
 export function renderRsiChart(history) {
   destroy('rsi');
   const ctx = document.getElementById('rsi-chart');

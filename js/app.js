@@ -1,8 +1,8 @@
 // Main controller — orchestrates API, prediction, rendering.
 
 import { getHistory, getUsdToVnd, clearCache } from './api.js';
-import { predict } from './predictor.js';
-import { renderPriceChart, renderRsiChart, renderMacdChart } from './charts.js';
+import { predict, predictLongTerm } from './predictor.js';
+import { renderPriceChart, renderRsiChart, renderMacdChart, renderLongTermChart } from './charts.js';
 
 // 1 troy ounce = 31.1034768 grams. 1 lượng VN = 37.5 grams.
 const GRAMS_PER_OZ = 31.1034768;
@@ -12,6 +12,7 @@ const state = {
   currency: 'USD', // USD | VND
   unit: 'oz',      // oz | g | tael
   rangeDays: 30,
+  ltRangeDays: 180,
   history: [],     // full cache
   latest: null,
   fxRate: 25500,
@@ -206,12 +207,70 @@ function filterWindow() {
   return state.history.slice(cutoffIdx);
 }
 
+function filterLongTermWindow() {
+  if (!state.history.length) return [];
+  const cutoffIdx = Math.max(0, state.history.length - state.ltRangeDays);
+  return state.history.slice(cutoffIdx);
+}
+
 function updateCharts() {
   const slice = filterWindow();
   if (slice.length < 2) return;
   renderPriceChart(slice, state.currency + ' ' + unitLabel(), formatPrice, convertPrice);
   renderRsiChart(slice);
   renderMacdChart(slice);
+
+  // Long-term chart receives full history + visible window size so that
+  // SMA 200 can be rendered even when zoomed in.
+  if (state.history.length >= 2) {
+    renderLongTermChart(state.history, state.ltRangeDays, formatPrice, convertPrice);
+  }
+}
+
+function updateLongTermPrediction() {
+  // Use ALL available history for the prediction itself (not just the chart window),
+  // so SMA 200 can be computed if we have enough data.
+  const result = predictLongTerm(state.history);
+  const badge = $('#longterm-badge');
+  badge.className = 'prediction ' + result.direction;
+  const arrow = result.direction === 'up' ? '↑' : result.direction === 'down' ? '↓' : '→';
+  $('#longterm-badge .arrow').textContent = arrow;
+  $('#longterm-badge .label').textContent = result.label;
+
+  if (result.message) {
+    setText('#lt-confidence', '—');
+    setText('#lt-signals-count', '—');
+    setText('#lt-composite', '—');
+    $('#lt-signals-table').innerHTML = `<div class="muted small" style="grid-column:1/-1">${result.message}</div>`;
+    return;
+  }
+
+  setText('#lt-confidence', (result.confidence * 100).toFixed(0) + '%');
+  const up = result.signals.filter((s) => s.score > 0).length;
+  const down = result.signals.filter((s) => s.score < 0).length;
+  setText('#lt-signals-count', `${up} ↑ / ${down} ↓ / ${result.signals.length - up - down} →`);
+  setText('#lt-composite', (result.composite > 0 ? '+' : '') + (result.composite * 100).toFixed(0) + '%');
+
+  const tbl = $('#lt-signals-table');
+  tbl.innerHTML = '';
+  for (const s of result.signals) {
+    const dir = s.score > 0.1 ? 'up' : s.score < -0.1 ? 'down' : 'neutral';
+    const valTxt = s.score > 0 ? 'Tăng' : s.score < 0 ? 'Giảm' : 'Trung tính';
+    const card = document.createElement('div');
+    card.className = 'signal ' + dir;
+    card.innerHTML = `
+      <div class="signal-name">${s.name}</div>
+      <div class="signal-value">${valTxt} <span class="muted small">(${(s.score * 100).toFixed(0)}%)</span></div>
+      <div class="signal-detail">${s.label} · ${s.value}</div>
+    `;
+    tbl.appendChild(card);
+  }
+
+  if (result.partial) {
+    setText('#longterm-note', `Đang dùng dữ liệu rút gọn (${state.history.length} ngày). Tải đủ ≥ 200 ngày để có Golden/Death Cross chuẩn.`);
+  } else {
+    setText('#longterm-note', `Dựa trên ${state.history.length} ngày dữ liệu · SMA 50/100/200, vị thế 52 tuần, độ dốc 90N.`);
+  }
 }
 
 function updateHistoryTable() {
@@ -239,6 +298,7 @@ function rerender() {
   updateHeaderStats();
   updateCharts();
   updatePrediction();
+  updateLongTermPrediction();
   updateHistoryTable();
 }
 
@@ -247,7 +307,7 @@ async function loadData(force = false) {
   try {
     if (force) clearCache();
     const [hist, fx] = await Promise.all([
-      getHistory({ days: 90, initialDays: 60, onProgress: (m) => showLoader(m) }),
+      getHistory({ days: 365, initialDays: 180, onProgress: (m) => showLoader(m) }),
       getUsdToVnd(),
     ]);
     state.history = hist.all;
@@ -284,11 +344,21 @@ function attachUI() {
       rerender();
     });
   });
-  document.querySelectorAll('.range-btn').forEach((b) => {
+  // Short-term range (price chart) — buttons that are NOT inside #lt-range
+  document.querySelectorAll('.range-toggle:not(#lt-range) .range-btn').forEach((b) => {
     b.addEventListener('click', () => {
-      document.querySelectorAll('.range-btn').forEach((x) => x.classList.remove('active'));
+      document.querySelectorAll('.range-toggle:not(#lt-range) .range-btn').forEach((x) => x.classList.remove('active'));
       b.classList.add('active');
       state.rangeDays = Number(b.dataset.days);
+      rerender();
+    });
+  });
+  // Long-term range
+  document.querySelectorAll('#lt-range .range-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#lt-range .range-btn').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      state.ltRangeDays = Number(b.dataset.days);
       rerender();
     });
   });

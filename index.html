@@ -77,6 +77,41 @@
       </p>
     </section>
 
+    <section class="card longterm-card">
+      <div class="card-head">
+        <div>
+          <h2>Dự báo &amp; biểu đồ dài hạn (1-3 tháng)</h2>
+          <p id="longterm-note" class="muted small" style="margin:4px 0 0">Dựa trên SMA 50/100/200, vị thế 52 tuần và độ dốc xu hướng 90 ngày.</p>
+        </div>
+        <div class="range-toggle" id="lt-range">
+          <button class="range-btn" data-days="90">3T</button>
+          <button class="range-btn active" data-days="180">6T</button>
+          <button class="range-btn" data-days="365">1N</button>
+        </div>
+      </div>
+
+      <div class="lt-grid">
+        <div id="longterm-badge" class="prediction neutral">
+          <span class="arrow">→</span>
+          <span class="label">Đang phân tích…</span>
+        </div>
+        <div class="lt-meta">
+          <div class="lt-row"><span class="muted small">Độ tin cậy</span><b id="lt-confidence">—</b></div>
+          <div class="lt-row"><span class="muted small">Tín hiệu</span><b id="lt-signals-count">—</b></div>
+          <div class="lt-row"><span class="muted small">Điểm tổng hợp</span><b id="lt-composite">—</b></div>
+        </div>
+      </div>
+
+      <div class="chart-wrap" style="height:420px"><canvas id="longterm-chart"></canvas></div>
+
+      <div id="lt-signals-table" class="signals" style="margin-top:14px"></div>
+      <p class="muted small" style="margin-top:12px">
+        <b>Lưu ý:</b> Dự báo dài hạn ổn định hơn khi có ≥ 200 ngày dữ liệu (SMA 200).
+        Khi mới chạy lần đầu, hệ thống cần thời gian để backfill đủ dữ liệu lịch sử.
+        Đây không phải lời khuyên đầu tư.
+      </p>
+    </section>
+
     <section class="grid-2">
       <div class="card">
         <div class="card-head"><h2>RSI (14)</h2><span id="rsi-value" class="badge">—</span></div>

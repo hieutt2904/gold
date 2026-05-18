@@ -135,6 +135,18 @@ main { max-width: 1240px; margin: 0 auto; padding: 24px; display: grid; gap: 20p
 .signal.down .signal-value { color: var(--red); }
 .signal.neutral .signal-value { color: var(--muted); }
 
+.lt-grid {
+  display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px;
+  align-items: stretch; margin-bottom: 16px;
+}
+.lt-meta {
+  background: var(--card-2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; justify-content: center;
+}
+.lt-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.lt-row b { font-size: 16px; font-weight: 600; }
+@media (max-width: 880px) { .lt-grid { grid-template-columns: 1fr; } }
+
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--border); }
