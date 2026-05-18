@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dự báo giá vàng XAU</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://www.goldapi.io" />
+  <link rel="preconnect" href="https://open.er-api.com" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">XAU</span>
+      <h1>Dự báo giá vàng</h1>
+    </div>
+    <div class="controls">
+      <div class="currency-toggle" role="tablist" aria-label="Đơn vị tiền tệ">
+        <button class="cur-btn active" data-cur="USD" role="tab" aria-selected="true">USD</button>
+        <button class="cur-btn" data-cur="VND" role="tab" aria-selected="false">VND</button>
+      </div>
+      <div class="unit-toggle" role="tablist" aria-label="Đơn vị khối lượng">
+        <button class="unit-btn active" data-unit="oz" role="tab">/ounce</button>
+        <button class="unit-btn" data-unit="g" role="tab">/gram</button>
+        <button class="unit-btn" data-unit="tael" role="tab">/lượng</button>
+      </div>
+      <button id="refresh-btn" class="refresh" title="Làm mới dữ liệu">↻</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="card price-card">
+        <div class="card-head">
+          <span class="muted">Giá hiện tại</span>
+          <span id="price-time" class="muted small"></span>
+        </div>
+        <div class="price-row">
+          <div id="current-price" class="price">—</div>
+          <div id="price-change" class="change">—</div>
+        </div>
+        <div class="meta">
+          <span>Mở cửa: <b id="price-open">—</b></span>
+          <span>Cao: <b id="price-high">—</b></span>
+          <span>Thấp: <b id="price-low">—</b></span>
+          <span>Trước: <b id="price-prev">—</b></span>
+        </div>
+      </div>
+
+      <div class="card prediction-card">
+        <div class="card-head">
+          <span class="muted">Dự báo xu hướng (ngắn hạn 1-5 ngày)</span>
+          <span id="prediction-confidence" class="muted small"></span>
+        </div>
+        <div id="prediction-badge" class="prediction neutral">
+          <span class="arrow">→</span>
+          <span class="label">Đang phân tích…</span>
+        </div>
+        <div id="prediction-summary" class="muted small"></div>
+      </div>
+    </section>
+
+    <section class="card chart-card">
+      <div class="card-head">
+        <h2>Biểu đồ giá &amp; đường trung bình</h2>
+        <div class="range-toggle">
+          <button class="range-btn" data-days="14">14N</button>
+          <button class="range-btn active" data-days="30">30N</button>
+          <button class="range-btn" data-days="60">60N</button>
+          <button class="range-btn" data-days="90">90N</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
+      <p class="legend-note muted small">
+        SMA = trung bình động đơn giản. Đường ngắn cắt lên đường dài là tín hiệu tăng;
+        Bollinger Bands cho biết vùng biến động ±2σ.
+      </p>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <div class="card-head"><h2>RSI (14)</h2><span id="rsi-value" class="badge">—</span></div>
+        <div class="chart-wrap small-chart"><canvas id="rsi-chart"></canvas></div>
+        <p class="muted small">RSI &gt; 70: quá mua (có thể giảm). RSI &lt; 30: quá bán (có thể tăng).</p>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>MACD (12, 26, 9)</h2><span id="macd-value" class="badge">—</span></div>
+        <div class="chart-wrap small-chart"><canvas id="macd-chart"></canvas></div>
+        <p class="muted small">MACD cắt lên trên đường tín hiệu (signal) = xu hướng tăng và ngược lại.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Chi tiết tín hiệu kỹ thuật</h2></div>
+      <div id="signals-table" class="signals"></div>
+      <p class="muted small">
+        Dự báo dựa trên tổng hợp tín hiệu của 5 chỉ báo:
+        SMA crossover (7/21), EMA crossover (12/26), RSI(14), MACD(12,26,9), Bollinger Bands(20,2).
+        Mỗi chỉ báo đóng góp một phần vào điểm tin cậy. <b>Đây không phải lời khuyên đầu tư.</b>
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Lịch sử giá gần đây</h2></div>
+      <div class="table-wrap">
+        <table id="history-table">
+          <thead><tr><th>Ngày</th><th>Giá</th><th>Thay đổi</th><th>% thay đổi</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted small">
+    <span>Nguồn: GoldAPI.io · Tỉ giá: open.er-api.com</span>
+    <span id="cache-info"></span>
+  </footer>
+
+  <div id="loader" class="loader hidden"><div class="spinner"></div><span>Đang tải dữ liệu…</span></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
