@@ -313,7 +313,16 @@ async function loadData(force = false) {
     state.history = hist.all;
     state.latest = hist.latest;
     state.fxRate = fx;
-    setText('#cache-info', `Đang lưu ${hist.cacheSize} ngày · Tỉ giá USD→VND: ${Math.round(fx).toLocaleString('vi-VN')}`);
+    const s = hist.stats || {};
+    let info = `Đang lưu ${hist.cacheSize} ngày · Tỉ giá USD→VND: ${Math.round(fx).toLocaleString('vi-VN')}`;
+    if (s.fetched) info += ` · Vừa tải mới ${s.fetched}`;
+    if (s.failed)  info += ` · ⚠ ${s.failed} request lỗi`;
+    setText('#cache-info', info);
+    if (s.failed >= 3 && s.fetched === 0) {
+      toast(`GoldAPI lỗi hoặc hết quota (${s.lastError || ''}). Mở Console để xem chi tiết.`, true);
+    } else if (s.failed > 0) {
+      toast(`Có ${s.failed} ngày lịch sử không tải được — dự báo có thể chưa đầy đủ.`, true);
+    }
     rerender();
   } catch (e) {
     console.error(e);

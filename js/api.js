@@ -64,12 +64,14 @@ function saveCache(cache) {
 export async function getHistory({ days = 60, initialDays = 180, onProgress } = {}) {
   const cache = loadCache();
   const todayKey = isoDay(todayUTC());
+  const stats = { fetched: 0, cached: 0, failed: 0, lastError: null, aborted: false };
 
   // Helper: ensure a single date is fetched and cached
   const ensure = async (d, label) => {
     const key = isoDay(d);
-    if (cache.points[key]) return;
+    if (cache.points[key]) { stats.cached++; return; }
     if (isWeekend(d)) return; // markets closed
+    if (stats.aborted) return; // stop after repeated failures (likely quota)
     try {
       if (onProgress) onProgress(label);
       const data = await fetchGold(ymd(d));
@@ -81,8 +83,16 @@ export async function getHistory({ days = 60, initialDays = 180, onProgress } = 
         low: data.low_price,
         prev: data.prev_close_price,
       };
+      stats.fetched++;
     } catch (e) {
+      stats.failed++;
+      stats.lastError = e.message;
       console.warn('Skip date', key, e.message);
+      // Sau 3 lỗi liên tiếp dừng để tránh đốt quota / spam request
+      if (stats.failed >= 3 && stats.fetched === 0) {
+        stats.aborted = true;
+        console.error('GoldAPI có vẻ đang lỗi/hết quota — dừng backfill.');
+      }
     }
   };
 
@@ -125,7 +135,7 @@ export async function getHistory({ days = 60, initialDays = 180, onProgress } = 
   const window = all.filter((p) => p.date >= cutoff);
   const latest = all[all.length - 1] || null;
 
-  return { history: window, all, latest, cacheSize: all.length };
+  return { history: window, all, latest, cacheSize: all.length, stats };
 }
 
 export async function getUsdToVnd() {

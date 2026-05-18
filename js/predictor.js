@@ -168,36 +168,47 @@ export function predict(history) {
 // 52-week range position. Each signal returns score in [-1, +1] with a weight.
 
 function smaCrossLongSignal(closes) {
-  const fast = sma(closes, 50);
-  const slowA = sma(closes, 200);
-  const f = last(fast), pF = prev(fast);
-  const s = last(slowA), pS = prev(slowA);
-  if (f == null || s == null) {
-    // Fallback: try SMA 50 vs SMA 100 if we don't have 200 days of data yet
-    const slowB = sma(closes, 100);
-    const s2 = last(slowB), pS2 = prev(slowB);
-    if (f == null || s2 == null) {
-      return { name: 'SMA 50/200', score: 0, label: 'Chưa đủ dữ liệu (cần ≥ 200 ngày)', value: '—', neutral: true, partial: true };
-    }
-    const diff = f - s2;
-    const pDiff = (pF ?? f) - (pS2 ?? s2);
-    const strength = Math.min(1, Math.abs(diff) / (last(closes) * 0.01));
-    let score = 0, label = 'Trung tính';
-    if (diff > 0 && pDiff <= 0) { score = 0.9; label = 'SMA 50 cắt lên SMA 100 (thay thế)'; }
-    else if (diff < 0 && pDiff >= 0) { score = -0.9; label = 'SMA 50 cắt xuống SMA 100 (thay thế)'; }
-    else if (diff > 0) { score = 0.5 * strength; label = 'SMA 50 trên SMA 100'; }
-    else if (diff < 0) { score = -0.5 * strength; label = 'SMA 50 dưới SMA 100'; }
-    return { name: 'SMA 50/100', score, label, value: `${f.toFixed(2)} / ${s2.toFixed(2)}`, neutral: score === 0, partial: true };
+  // Pick the longest SMA pair we have enough data for.
+  // Ideal: 50/200 (Golden/Death). Fallback: 50/100. Final fallback: 20/50.
+  const tryPair = (fastP, slowP, scale) => {
+    const f = sma(closes, fastP);
+    const s = sma(closes, slowP);
+    if (last(f) == null || last(s) == null) return null;
+    return { fast: f, slow: s, fastP, slowP, scale };
+  };
+  const pair = tryPair(50, 200, 1.0) || tryPair(50, 100, 0.9) || tryPair(20, 50, 0.8);
+  if (!pair) {
+    return { name: 'SMA Cross', score: 0, label: 'Cần ≥ 50 ngày dữ liệu', value: '—', neutral: true, partial: true };
   }
+  const { fast, slow, fastP, slowP, scale } = pair;
+  const f = last(fast), pF = prev(fast);
+  const s = last(slow), pS = prev(slow);
   const diff = f - s;
   const pDiff = pF != null && pS != null ? pF - pS : diff;
   const strength = Math.min(1, Math.abs(diff) / (last(closes) * 0.01));
   let score = 0, label = 'Trung tính';
-  if (diff > 0 && pDiff <= 0) { score = 1; label = 'Golden Cross (rất tích cực)'; }
-  else if (diff < 0 && pDiff >= 0) { score = -1; label = 'Death Cross (rất tiêu cực)'; }
-  else if (diff > 0) { score = 0.6 * strength; label = 'Đang trong xu hướng tăng dài hạn'; }
-  else if (diff < 0) { score = -0.6 * strength; label = 'Đang trong xu hướng giảm dài hạn'; }
-  return { name: 'SMA 50/200', score, label, value: `${f.toFixed(2)} / ${s.toFixed(2)}`, neutral: score === 0 };
+  const isGolden = fastP === 50 && slowP === 200;
+  if (diff > 0 && pDiff <= 0) {
+    score = scale;
+    label = isGolden ? 'Golden Cross (rất tích cực)' : `SMA ${fastP} cắt lên SMA ${slowP}`;
+  } else if (diff < 0 && pDiff >= 0) {
+    score = -scale;
+    label = isGolden ? 'Death Cross (rất tiêu cực)' : `SMA ${fastP} cắt xuống SMA ${slowP}`;
+  } else if (diff > 0) {
+    score = 0.6 * scale * strength;
+    label = `SMA ${fastP} trên SMA ${slowP} (xu hướng tăng)`;
+  } else if (diff < 0) {
+    score = -0.6 * scale * strength;
+    label = `SMA ${fastP} dưới SMA ${slowP} (xu hướng giảm)`;
+  }
+  return {
+    name: `SMA ${fastP}/${slowP}`,
+    score,
+    label,
+    value: `${f.toFixed(2)} / ${s.toFixed(2)}`,
+    neutral: score === 0,
+    partial: !isGolden,
+  };
 }
 
 function pricePositionSignal(closes) {
@@ -268,7 +279,7 @@ function rocSignal(closes) {
 
 export function predictLongTerm(history) {
   const closes = history.map((p) => p.price);
-  if (closes.length < 50) {
+  if (closes.length < 30) {
     return {
       composite: 0,
       label: 'CHƯA ĐỦ DỮ LIỆU',
@@ -276,7 +287,8 @@ export function predictLongTerm(history) {
       confidence: 0,
       signals: [],
       partial: true,
-      message: `Cần ít nhất 50 điểm dữ liệu cho dự báo dài hạn (hiện có ${closes.length}).`,
+      message: `Cần ít nhất 30 ngày dữ liệu cho dự báo dài hạn (hiện có ${closes.length}). ` +
+        `Nếu vừa load lần đầu, hãy chờ backfill xong; nếu API hết quota, mở DevTools (F12) → Console để xem lỗi.`,
     };
   }
 
